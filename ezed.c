@@ -36,7 +36,7 @@ void replace(char *str, int start, int amount, char *replacev) {
 
 size_t inp_alloc_s = sizeof(char) * 50 * 50;
 size_t txt_lines_amount = 2000;
-size_t txt_line_alloc_s = sizeof(char) * 100;
+size_t txt_line_alloc_s = 400;
 
 int get_indent(char *str) {
     int in = 0;
@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
             printf("x               list all contents in the find buffer\n");
             printf("y               clear the find buffer\n");
             printf("r [txt]         replaces everything in the find buffer with [txt]\n");
-            printf("\n");
+            putchar('\n');
         }
         else if (inp[0] == 'r') {
             // replace
@@ -307,7 +307,7 @@ int main(int argc, char **argv) {
                     ltxt[c] = inp[i];
                 c++;
             }
-
+            
             int line = atoi(line_s);
             size_t ltxt_l = strlen(ltxt);
 
@@ -467,7 +467,8 @@ int main(int argc, char **argv) {
 
                     free(a);
                     free(b);
-                } else {
+                }
+                else {
                     int line = atoi(t);
                     if (line < txt_lines) {
                         printf("%i: %s\n", line, txt[line]);
@@ -484,6 +485,7 @@ int main(int argc, char **argv) {
                 }
                 printf("EOT\n");
             }
+
             putchar('\n');
         }
         else if (inp[0] == 'v') {
