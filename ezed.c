@@ -144,6 +144,7 @@ int main(int argc, char **argv) {
             printf("s               save to the file\n");
             printf("v               display infos about the file and others\n");
             printf("e [l] [txt]     changes the text of the line [l] to [txt]\n");
+            printf("w [l] [txt]     changes the text of the line [l] to original indent + [txt]\n");
             printf("i [l]           insert empty line after line [l]\n");
             printf("i [l] [txt]     insert line with text [t] after line [l]\n");
             printf("d [l]           delete line [l]\n");
@@ -287,7 +288,7 @@ int main(int argc, char **argv) {
 
             printf("indent of line %i: %i\n", l, get_indent(txt[l]));
         }
-        else if (inp[0] == 'e' && inpl > 4) {
+        else if ((inp[0] == 'e' || inp[0] == 'w') && inpl > 4) {
             // edit line
             char *line_s = malloc(inpl);
             char *ltxt = malloc(inpl);
@@ -312,7 +313,13 @@ int main(int argc, char **argv) {
 
             if (line < txt_lines)
                 txt_size -= strlen(txt[line]) + 1;
-            memcpy(txt[line], ltxt, ltxt_l + 1);
+
+            if (inp[0] == 'w') {
+                memcpy(txt[line] + get_indent(txt[line]), ltxt, ltxt_l + 1);
+            }
+            else {
+                memcpy(txt[line], ltxt, ltxt_l + 1);
+            }
             txt_size += ltxt_l + 1;
 
             free(line_s);
@@ -477,7 +484,7 @@ int main(int argc, char **argv) {
                 }
                 printf("EOT\n");
             }
-            printf("\n");
+            putchar('\n');
         }
         else if (inp[0] == 'v') {
             printf("Find buffer length: %i\n", occ_c);
