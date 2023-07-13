@@ -1,6 +1,7 @@
 # ezed
 
 ### Commands
+```text
 - q               quit
 - h               display this
 - s               save to the file
@@ -23,3 +24,4 @@
 - x               list all contents in the find buffer
 - y               clear the find buffer
 - r [txt]         replaces everything in the find buffer with [txt]
+```
