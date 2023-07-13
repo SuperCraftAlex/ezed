@@ -7,6 +7,7 @@
 - s               save to the file
 - v               display infos about the file and other stuff
 - e [l] [txt]     changes the text of the line [l] to [txt]
+- w [l] [txt]     changes the text of the line [l] to original indent + [txt]
 - i [l]           insert empty line after line [l]
 - i [l] [txt]     insert line with text [t] after line [l]
 - d [l]           delete line [l]
