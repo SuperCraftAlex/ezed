@@ -441,21 +441,10 @@ int main(int argc, char **argv) {
                     }
 
                     int from = atoi(a);
-                    int to;
-                    if (b[0] == ' ' || b[0] == 0 || b[0] == '\n') {
-                        if (txt_lines == 0)
-                            to = 0;
-                        else
-                            to = txt_lines-1;
-                    } else {
-                        to = atoi(b);
-                    }
+                    int to = atoi(b);
 
-
-                    if (from > to) {
-                        int t_a = to;
-                        to = from;
-                        from = t_a;
+                    if (to == 0 && txt_lines > 0) {
+                        to = txt_lines - 1;
                     }
 
                     for (int i = from; i <= to; ++i) {
