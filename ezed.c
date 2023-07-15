@@ -8,8 +8,6 @@
 #define clear() printf("\033[H\033[J")
 #define gotoxy(x,y) printf("\033[%d;%dH", (y), (x))
 
-static size_t my_mallocs = 0;
-
 // copied from chat gpt cuzzzzz yeah
 void replace(char *str, int start, int amount, char *replacev) {
     int len = strlen(str);
@@ -78,6 +76,7 @@ struct LoopData;
 typedef struct macro {
     string* performs;
     size_t performc;
+    size_t args;
     string name;
 } macro;
 
@@ -598,7 +597,8 @@ void do_macro_def(LoopData* data) { // o
     pop_front(&data->tokens);
     pop_front(&data->tokens);
     int params = parse_params(args);
-    
+
+    mac.args = params;
     mac.name = name;
     mac.performs = malloc(sizeof(string) * data->tokens.count);
     for(int i = 0; i < data->tokens.count; ++i) {
@@ -607,9 +607,7 @@ void do_macro_def(LoopData* data) { // o
     mac.performc = data->tokens.count;
 
     data->macros = realloc(data->macros, sizeof(macro) * (data->macroc + 1));
-    if(!data->macros) { 
-        printf("wha");
-    }
+
     data->macros[data->macroc] = mac;
     data->macroc++;
 }
@@ -627,6 +625,7 @@ void do_exec_macro(LoopData* data) {
 void resolve_input(LoopData* data);
 
 void execute_macro(macro* mac, tokenized arguments, LoopData* data) {
+    if(mac->args != arguments.count) return; // error
     string exec = str_new("");
     for(int i = 0; i < mac->performc; ++i) {
         if(!strcmp(mac->performs[i].str,";")) {
@@ -675,6 +674,13 @@ void execute_macro(macro* mac, tokenized arguments, LoopData* data) {
     data->inp = last_inp;
     data->inpl = last_inpl;
     str_kill(&exec);
+}
+
+void free_macro(macro* mac) {
+    for(int i = 0; i < mac->performc; ++i) 
+        str_kill(&mac->performs[i]);
+    
+    free(mac->performs);
 }
 
 macro* find_macro(char* name, LoopData* data) {
@@ -876,6 +882,12 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < txt_lines_amount; ++i) {
         free(data.txt[i]);
+    }
+
+    if(data.macroc == 0) free(data.macros);
+    for(int i = 0; i < data.macroc; ++i) {
+        free_macro(&data.macros[i]);
+        free(&data.macros[i]);
     }
 
     free(data.occ);
