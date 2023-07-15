@@ -10,8 +10,6 @@
 
 static size_t my_mallocs = 0;
 
-// #define malloc(x) (my_mallocs += (x), printf("Malloc: %d Bytes\n", my_mallocs), malloc(x))
-
 // copied from chat gpt cuzzzzz yeah
 void replace(char *str, int start, int amount, char *replacev) {
     int len = strlen(str);
@@ -328,13 +326,8 @@ void do_edit(LoopData* data, int keep_indent) {
     free(ltxt);
 }
 
-void do_normal_edit(LoopData* data) { // e
-    do_edit(data,0);
-}
-
-void do_indent_edit(LoopData* data) { // w
-    do_edit(data,1);
-}
+#define do_normal_edit(data) do_edit(data, 0)
+#define do_indent_edit(data) do_edit(data, 1)
 
 void do_insert(LoopData* data) { // i
     // insert line after...
@@ -382,7 +375,7 @@ void do_insert(LoopData* data) { // i
 }
 
 void do_delete(LoopData* data) { // d
-// TODO: d [from]-[to]
+    // TODO: d [from]-[to]
 
     // delete line
     if(data->inpl <= 2) return;
@@ -403,7 +396,7 @@ void do_delete(LoopData* data) { // d
 }
 
 void do_append(LoopData* data) { // a
-// append line
+    // append line
     if (data->inpl > 2) {
         memcpy(data->txt[data->txt_lines], data->inp+2, data->inpl-1);
         data->txt[data->txt_lines][data->inpl-3] = 0;
@@ -412,7 +405,7 @@ void do_append(LoopData* data) { // a
         data->txt_size += strlen(data->inp + 2) + 1;
     }
     else {
-        data->txt[data->txt_lines] = "";
+        data->txt[data->txt_lines][0] = 0;
         data->txt_lines ++;
         data->txt_size += 1;
     }
@@ -457,21 +450,9 @@ void do_list(LoopData* data) { // l
             }
 
             int from = atoi(a);
-            int to;
-            if (b[0] == ' ' || b[0] == 0 || b[0] == '\n') {
-                if (data->txt_lines == 0)
-                    to = 0;
-                else
-                    to = data->txt_lines-1;
-            } 
-            else {
-                to = atoi(b);
-            }
-
-            if (from > to) {
-                int t_a = to;
-                to = from;
-                from = t_a;
+            int to = atoi(b);
+            if (to == 0 && data->txt_lines > 0) {
+                to = data->txt_lines - 1;
             }
 
             for (int i = from; i <= to; ++i) {
@@ -506,7 +487,7 @@ void do_list(LoopData* data) { // l
 }
 
 void do_get_indents(LoopData* data) { // m
-// get indent of line
+    // get indent of line
     if(data->inpl <= 2) return;
     char *t = malloc(data->inpl);
 
@@ -625,17 +606,12 @@ void do_macro_def(LoopData* data) { // o
     }
     mac.performc = data->tokens.count;
 
-    macro* last_macros = data->macros;
-    data->macros = malloc(sizeof(macro) * (data->macroc + 1));
+    data->macros = realloc(data->macros, sizeof(macro) * (data->macroc + 1));
     if(!data->macros) { 
         printf("wha");
     }
-    for(int i = 0; i < data->macroc; ++i) 
-        data->macros[i] = last_macros[i];
     data->macros[data->macroc] = mac;
-    if(last_macros)
-        free(last_macros);
-    ++data->macroc;
+    data->macroc++;
 }
 
 void execute_macro(macro* mac, tokenized arguments, LoopData* data);
@@ -713,6 +689,16 @@ macro* find_macro(char* name, LoopData* data) {
 // TODO: reallocate txt alloc automatically
 
 void resolve_input(LoopData* data) {
+    data->inpl = strlen(data->inp);
+    for (int i = data->inpl - 1; i >= 0; --i) {
+        if (data->inp[i] == ' ' || data->inp[i] == '\n') {
+            data->inp[i] = 0;
+            data->inpl--;
+        }
+        else
+            break;
+    }
+
     switch(data->inp[0]) {
         case 'q':
             do_quit(data);
@@ -827,7 +813,7 @@ int main(int argc, char **argv) {
     data.occ_c = 0;
     data.occ = malloc(data.txt_size);
     data.macroc = 0;
-    data.macros = NULL;
+    data.macros = malloc(sizeof(macro) * 1);
     if(access(data.c_file, F_OK) == 0) {
         FILE* file;
         char *buffer = malloc(txt_line_alloc_s);
@@ -894,6 +880,9 @@ int main(int argc, char **argv) {
 
     free(data.occ);
     free(data.txt);
+
+    clear();
+    gotoxy(0, 0);
 
     return 0;
 }
