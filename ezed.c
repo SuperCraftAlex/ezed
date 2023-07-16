@@ -35,7 +35,7 @@ void replace(char *str, int start, int amount, char *replacev) {
 }
 
 size_t inp_alloc_s = sizeof(char) * 50 * 50;
-size_t txt_lines_amount = 2000;
+size_t txt_lines_amount = 500;
 size_t txt_line_alloc_s = 400;
 
 int get_indent(char *str) {
@@ -47,12 +47,6 @@ int get_indent(char *str) {
             break;
     }
     return in;
-}
-
-void update_txt_alloc(char **txt) {
-    txt = realloc(txt, txt_lines_amount * sizeof(char *));
-    for (int i = 0; i < txt_lines_amount; ++i)
-        txt[i] = realloc(txt[i], txt_line_alloc_s);
 }
 
 typedef struct POS {
@@ -240,8 +234,23 @@ void free_tokenized(tokenized* tokens) {
 
 void show_help_message(void);
 
+#define ALLOC_INC_STEP 200
+void auto_increase_alloc(LoopData *data) {
+    if (data->txt_lines > txt_lines_amount - 1) {
+        // increase size of alloc
+        int oldc = txt_lines_amount;
+        int newc = txt_lines_amount + ALLOC_INC_STEP;
+        data->txt = realloc(data->txt, newc * sizeof(char *));
+        for (int i = oldc-1; i < newc; ++i) {
+            data->txt[i] = malloc(txt_line_alloc_s);
+        }
+        txt_lines_amount = newc;
+    }
+}
+
+
 void do_quit(LoopData* data) { // q
-    data->running = false;
+
 }
 
 void do_replace(LoopData* data) { // r
@@ -263,10 +272,6 @@ void do_replace(LoopData* data) { // r
     data->occ_c = 0;
 }
 
-void do_help(LoopData* data) { // h
-    show_help_message();
-}
-
 void do_save(LoopData* data) { // s
     // save to file
     FILE *file = fopen(data->c_file, "w");
@@ -284,6 +289,9 @@ void do_file_info(LoopData* data) { // v
     printf("File: %s\n", data->c_file);
     printf("Total lines: %i\n", data->txt_lines);
     printf("Total size: ~%zu bytes\n", data->txt_size);
+    putchar('\n');
+    printf("DEBUG:\n");
+    printf("Allocated lines: %zu\n", txt_lines_amount);
     putchar('\n');
 }
 
@@ -371,6 +379,8 @@ void do_insert(LoopData* data) { // i
 
     free(line_s);
     free(ltxt);
+
+    auto_increase_alloc(data);
 }
 
 void do_delete(LoopData* data) { // d
@@ -408,6 +418,8 @@ void do_append(LoopData* data) { // a
         data->txt_lines ++;
         data->txt_size += 1;
     }
+
+    auto_increase_alloc(data);
 }
 
 void do_list(LoopData* data) { // l
@@ -533,6 +545,8 @@ void do_copy(LoopData* data) { // c
     data->txt_size += strlen(data->txt[av]) + 1;
 
     data->txt_lines++;
+
+    auto_increase_alloc(data);
 }
 
 void do_move(LoopData* data) { // p
@@ -692,10 +706,7 @@ macro* find_macro(char* name, LoopData* data) {
     return NULL;
 }
 
-// TODO: reallocate txt alloc automatically
-
 void resolve_input(LoopData* data) {
-    data->inpl = strlen(data->inp);
     for (int i = data->inpl - 1; i >= 0; --i) {
         if (data->inp[i] == ' ' || data->inp[i] == '\n') {
             data->inp[i] = 0;
@@ -707,10 +718,10 @@ void resolve_input(LoopData* data) {
 
     switch(data->inp[0]) {
         case 'q':
-            do_quit(data);
+            data->running = false;
             break;
         case 'h':
-            do_help(data);
+            show_help_message();
             break;
         case 'r':
             do_replace(data);
@@ -761,7 +772,8 @@ void resolve_input(LoopData* data) {
             do_exec_macro(data);
             break;
         default:
-            // error
+            printf("Command not found!\n");
+            break;
     }
 }
 
@@ -794,7 +806,6 @@ void show_help_message(void) {
     printf("t [macro] [args..]     executes a macro\n");
     putchar('\n');
 }
-
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -833,11 +844,12 @@ int main(int argc, char **argv) {
 
         int line = 0;
         while(fgets(buffer, (int) txt_line_alloc_s, file)) {
+            data.txt_lines = line + 1;
+            auto_increase_alloc(&data);
             memcpy(data.txt[line], buffer, txt_line_alloc_s);
             data.txt[line][strlen(buffer)-1] = 0;
             line ++;
         }
-        data.txt_lines = line;
 
         fclose(file);
         free(buffer);
