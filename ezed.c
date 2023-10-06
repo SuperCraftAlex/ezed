@@ -5,10 +5,6 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#define clear() printf("\033[H\033[J")
-#define gotoxy(x,y) printf("\033[%d;%dH", (y), (x))
-
-// copied from chat gpt cuzzzzz yeah
 void replace(char *str, int start, int amount, char *replacev) {
     int len = strlen(str);
     int replaceLen = strlen(replacev);
@@ -248,11 +244,6 @@ void auto_increase_alloc(LoopData *data) {
     }
 }
 
-
-void do_quit(LoopData* data) { // q
-
-}
-
 void do_replace(LoopData* data) { // r
     // replace
     char *t = malloc(data->inpl);
@@ -292,6 +283,7 @@ void do_file_info(LoopData* data) { // v
     putchar('\n');
     printf("DEBUG:\n");
     printf("Allocated lines: %zu\n", txt_lines_amount);
+    printf("Macros: %zu\n", data->macroc);
     putchar('\n');
 }
 
@@ -303,7 +295,7 @@ void do_edit(LoopData* data, int keep_indent) {
     int stage = 0;
     int c = 0;
     for(int i = 2; i < data->inpl; ++i) {
-        if(data->inp[i] == ' ' && stage == 0 || data->inp[i] == '\n') {
+        if((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n') {
             stage++;
             c = 0;
             continue;
@@ -347,7 +339,7 @@ void do_insert(LoopData* data) { // i
     int stage = 0;
     int c = 0;
     for (int i = 2; i < data->inpl; ++i) {
-        if (data->inp[i] == ' ' && stage == 0 || data->inp[i] == '\n' || data->inp[i] == 10) {
+        if ((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n' || data->inp[i] == 10) {
             stage++;
             c = 0;
             continue;
@@ -383,25 +375,25 @@ void do_insert(LoopData* data) { // i
     auto_increase_alloc(data);
 }
 
+static void delete_line(LoopData *data, int line) {
+    data->txt_size -= strlen(data->txt[line]) + 1;
+
+    for (int i = line; i < data->txt_lines-1; ++i) {
+        memcpy(data->txt[i], data->txt[i + 1], strlen(data->txt[i + 1]) + 1);
+    }
+
+    data->txt_lines--;
+}
+
 void do_delete(LoopData* data) { // d
     // TODO: d [from]-[to]
 
     // delete line
     if(data->inpl <= 2) return;
-    char *t = malloc(data->inpl);
 
-    for (int i = 2; i < data->inpl; ++i)
-        t[i - 2] = data->inp[i];
+    int l = atoi(data->inp + 2);
 
-    int l = atoi(t);
-    free(t);
-    data->txt_size -= strlen(data->txt[l]) + 1;
-
-    for (int i = l; i < data->txt_lines-1; ++i) {
-        memcpy(data->txt[i], data->txt[i + 1], strlen(data->txt[i + 1]) + 1);
-    }
-
-    data->txt_lines--;
+    delete_line(data, l);
 }
 
 void do_append(LoopData* data) { // a
@@ -511,46 +503,78 @@ void do_get_indents(LoopData* data) { // m
     printf("indent of line %i: %i\n", l, get_indent(data->txt[l]));
 }
 
-void do_copy(LoopData* data) { // c
-    if(data->inpl <= 4) return;
-    // copies line l and inserts it after line a
-    char *a = malloc(data->inpl);
-    char *b = malloc(data->inpl);
-
-    int stage = 0;
-    int c = 0;
-    for(int i = 2; i < data->inpl; ++i) {
-        if(data->inp[i] == ' ' && stage == 0 || data->inp[i] == '\n') {
-            stage++;
-            c = 0;
-            continue;
-        }
-        if(stage == 0)
-            a[c] = data->inp[i];
-        else if(stage == 1)
-            b[c] = data->inp[i];
-        c++;
+static void copy_fromto(LoopData *data, int from, int whereInsert) {
+    for (int i = data->txt_lines; i > whereInsert; --i) {
+        memcpy(data->txt[i], data->txt[i - 1], strlen(data->txt[i - 1]) + 1);
     }
 
-    int av = atoi(a);     // what line to copy
-    int bv = atoi(b)+1;   // after what to insert to
-
-    free(a);
-    free(b);
-
-    for (int i = data->txt_lines; i > bv; --i) 
-        memcpy(data->txt[i], data->txt[i - 1], strlen(data->txt[i - 1]) + 1);
-
-    memcpy(data->txt[bv], data->txt[av], strlen(data->txt[av]) + 1);
-    data->txt_size += strlen(data->txt[av]) + 1;
+    memcpy(data->txt[whereInsert], data->txt[from], strlen(data->txt[from]) + 1);
+    data->txt_size += strlen(data->txt[from]) + 1;
 
     data->txt_lines++;
 
     auto_increase_alloc(data);
 }
 
-void do_move(LoopData* data) { // p
-    // unimplemented
+void do_copy(LoopData* data) { // c
+    if (data->inpl <= 4) return;
+    // copies line l and inserts it after line a
+    char *a = malloc(data->inpl);
+    char *b = malloc(data->inpl);
+
+    int stage = 0;
+    int c = 0;
+    for (int i = 2; i < data->inpl; ++i) {
+        if ((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n') {
+            stage++;
+            c = 0;
+            continue;
+        }
+        if (stage == 0)
+            a[c] = data->inp[i];
+        else if (stage == 1)
+            b[c] = data->inp[i];
+        c++;
+    }
+
+    int av = atoi(a);     // what line to copy
+    int bv = atoi(b) + 1;   // after what to insert to
+
+    free(a);
+    free(b);
+
+    copy_fromto(data, av, bv);
+}
+
+void do_move(LoopData* data) { // p [from] [where to insert]
+    if (data->inpl <= 4) return;
+    // moves line l and inserts it after line a
+    char *a = malloc(data->inpl);
+    char *b = malloc(data->inpl);
+
+    int stage = 0;
+    int c = 0;
+    for (int i = 2; i < data->inpl; ++i) {
+        if ((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n') {
+            stage++;
+            c = 0;
+            continue;
+        }
+        if (stage == 0)
+            a[c] = data->inp[i];
+        else if (stage == 1)
+            b[c] = data->inp[i];
+        c++;
+    }
+
+    int av = atoi(a);     // what line to copy
+    int bv = atoi(b) + 1;   // after what to insert to
+
+    free(a);
+    free(b);
+
+    copy_fromto(data, av, bv);
+    delete_line(data, av);
 }
 
 void do_find(LoopData* data) { // f
@@ -771,6 +795,9 @@ void resolve_input(LoopData* data) {
         case 't':
             do_exec_macro(data);
             break;
+        case 'p':
+            do_move(data);
+            break;
         default:
             printf("Command not found!\n");
             break;
@@ -816,14 +843,11 @@ int main(int argc, char **argv) {
     LoopData data;
     data.c_file = argv[1];
 
-    clear();
-    gotoxy(0, 0);
-
     data.txt_lines = 0;
     data.txt_size = 0;
 
     data.txt = malloc(txt_lines_amount * sizeof(char *));
-    for (int i = 0; i < txt_lines_amount; ++i)
+    for (size_t i = 0; i < txt_lines_amount; ++i)
         data.txt[i] = malloc(txt_line_alloc_s);
 
     // find buffer
@@ -856,10 +880,10 @@ int main(int argc, char **argv) {
 
         // remove trailing lines
         for (int i = data.txt_lines - 1; i >= 0; --i) {
-            if (data.txt[i][0] == 0)
-                data.txt_lines--;
-            else
+            if (data.txt[i][0] != 0) {
                 break;
+            }
+            data.txt_lines--;
         }
 
         printf("Loaded %d lines (%zu bytes) from file %s!\n", data.txt_lines, data.txt_size, data.c_file);
@@ -890,23 +914,30 @@ int main(int argc, char **argv) {
 
         free_tokenized(&data.tokens);
         free(data.inp);
+
+        if (!data.running) {
+            printf("Exit without saving? (y/n) ");
+            char c = getchar();
+            getchar();
+            if (c == 'y') {
+                break;
+            }
+            data.running = true;
+        }
     }
 
-    for (int i = 0; i < txt_lines_amount; ++i) {
+    for (size_t i = 0; i < txt_lines_amount; ++i) {
         free(data.txt[i]);
     }
 
     if(data.macroc == 0) free(data.macros);
-    for(int i = 0; i < data.macroc; ++i) {
+    for(size_t i = 0; i < data.macroc; ++i) {
         free_macro(&data.macros[i]);
         free(&data.macros[i]);
     }
 
     free(data.occ);
     free(data.txt);
-
-    clear();
-    gotoxy(0, 0);
 
     return 0;
 }
