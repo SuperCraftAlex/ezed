@@ -33,7 +33,7 @@ jobs:
         # An optional flag which indicates if artifact read or upload errors should fail the build.
         artifactErrorsFailBuild: false
         # An optional set of paths representing artifacts to upload to the release. This may be a single path or a comma delimited list of paths (or globs)
-        artifact: "ezed"
+        artifacts: "ezed"
         # The content type of the artifact. Defaults to raw
         artifactContentType: raw
         # An optional body for the release.
@@ -52,3 +52,5 @@ jobs:
         token: ${{ github.token }}
         # When allowUpdates is enabled, this will fail the action if the release it is updating is not a draft or a prerelease.
         updateOnlyUnreleased: false
+        # An optional commit reference. This will be used to create the tag if it does not exist.
+        commit: ${{ github.ref }}
