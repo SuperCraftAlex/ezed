@@ -54,3 +54,5 @@ jobs:
         updateOnlyUnreleased: false
         # An optional commit reference. This will be used to create the tag if it does not exist.
         commit: ${{ github.ref }}
+        # An optional tag for the release. If this is omitted the git ref will be used (if it is a tag).
+        tag: ${{ github.ref }}
