@@ -85,6 +85,8 @@ typedef struct LoopData {
     tokenized tokens;
     macro* macros;
     size_t macroc;
+
+    bool changed;
 } LoopData;
 
 tokenized tokenize(char* str, int do_braces, int do_strings) {
@@ -244,6 +246,39 @@ void auto_increase_alloc(LoopData *data) {
     }
 }
 
+typedef struct {
+    bool is_range;
+    int from;       // if open start, it is 0
+    int to;         // if open end, it is -1
+
+    // else
+    int line;
+} RangeArgument;
+
+RangeArgument parse_args_range(size_t inpl, char *inp) {
+    RangeArgument arg = {false, 0, -1, -1};
+    if (inpl == 0) {
+        return arg;
+    }
+    if (inp[0] == 0) {
+        return arg;
+    }
+    for (size_t i = 0; i < inpl; ++i) {
+        char c = inp[i];
+        if (c == '-') {
+            inp[i] = 0;
+            arg.from = atoi(inp);
+            arg.is_range = true;
+            if (inpl > i + 1 && inp[i + 1] != 0) {
+                arg.to = atoi(inp + i + 1);
+            }
+            return arg;
+        }
+    }
+    arg.line = atoi(inp);
+    return arg;
+}
+
 void do_replace(LoopData* data) { // r
     // replace
     char *t = malloc(data->inpl);
@@ -256,6 +291,8 @@ void do_replace(LoopData* data) { // r
         POS *pos = data->occ[i];
 
         replace(data->txt[pos->line], pos->offset, (int)pos->amount, t);
+
+        data->changed = true;
     }
 
     free(t);
@@ -272,6 +309,8 @@ void do_save(LoopData* data) { // s
     for (int i = 0; i < data->txt_lines; ++i)
         fprintf(file, "%s\n", data->txt[i]);
     fclose(file);
+
+    data->changed = false;
 }
 
 void do_file_info(LoopData* data) { // v
@@ -323,10 +362,12 @@ void do_edit(LoopData* data, int keep_indent) {
 
     free(line_s);
     free(ltxt);
+
+    data->changed = true;
 }
 
-#define do_normal_edit(data) do_edit(data, 0)
-#define do_indent_edit(data) do_edit(data, 1)
+#define do_normal_edit(data) do_edit(data, false)
+#define do_indent_edit(data) do_edit(data, true)
 
 void do_insert(LoopData* data) { // i
     // insert line after...
@@ -373,6 +414,8 @@ void do_insert(LoopData* data) { // i
     free(ltxt);
 
     auto_increase_alloc(data);
+
+    data->changed = true;
 }
 
 static void delete_line(LoopData *data, int line) {
@@ -385,15 +428,44 @@ static void delete_line(LoopData *data, int line) {
     data->txt_lines--;
 }
 
+static void delete_lines(LoopData *data, int from, int to) {
+    size_t size = 0;
+    for (int i = from; i <= to; ++i) {
+        size += strlen(data->txt[i]) + 1;
+    }
+    data->txt_size -= size;
+
+    for (int i = from; i < data->txt_lines - (to - from); ++i) {
+        memcpy(data->txt[i], data->txt[i + (to - from) + 1], strlen(data->txt[i + (to - from) + 1]) + 1);
+    }
+
+    data->txt_lines -= (to - from) + 1;
+}
+
 void do_delete(LoopData* data) { // d
-    // TODO: d [from]-[to]
+    if (data->inpl <= 2) return;
 
-    // delete line
-    if(data->inpl <= 2) return;
+    RangeArgument arg = parse_args_range(data->inpl, data->inp + 2);
+    if (arg.is_range) {
+        int from = arg.from;
+        int to = arg.to;
+        if (to == -1 && data->txt_lines > 0) {
+            to = data->txt_lines - 1;
+        }
 
-    int l = atoi(data->inp + 2);
+        delete_lines(data, from, to);
+    }
+    else {
+        int line = arg.line;
+        if (line < data->txt_lines) {
+            delete_line(data, line);
+        }
+        else {
+            printf("Line %i out of bounds!\n", line);
+        }
+    }
 
-    delete_line(data, l);
+    data->changed = true;
 }
 
 void do_append(LoopData* data) { // a
@@ -412,81 +484,45 @@ void do_append(LoopData* data) { // a
     }
 
     auto_increase_alloc(data);
+
+    data->changed = true;
 }
 
 void do_list(LoopData* data) { // l
-    // list
-    if (data->inpl > 2) {
-        char *t = malloc(data->inpl);
-        for (int i = 2; i < data->inpl; ++i) {
-            if (data->inp[i] == ' ')
-                break;
-            t[i-2] = data->inp[i];
-        }
-        bool is_range = false;
-        for (int i = 0; i < strlen(t); ++i) {
-            if (t[i] == '-') {
-                is_range = true;
-                break;
-            }
-        }
-
-        if (is_range) {
-            char *a = malloc(strlen(t));
-            char *b = malloc(strlen(t));   
-
-            int c = 0;
-            bool first = true;
-            for (int i = 0; i < strlen(t); ++i) {
-                if (t[i] == '-') {
-                    c = 0;
-                    first = false;
-                    continue;
-                }
-                else if (first) {
-                    a[c] = t[i];
-                }
-                else {
-                    b[c] = t[i];
-                }
-                c++;
-            }
-
-            int from = atoi(a);
-            int to = atoi(b);
-            if (to == 0 && data->txt_lines > 0) {
-                to = data->txt_lines - 1;
-            }
-
-            for (int i = from; i <= to; ++i) {
-                if (i < data->txt_lines)
-                    printf("%d: %s\n", i, data->txt[i]);
-                if(i == data->txt_lines-1)
-                    printf("EOT\n");
-            }
-
-            free(a);
-            free(b);
-        }
-        else {
-            int line = atoi(t);
-            if (line < data->txt_lines) {
-                printf("%d: %s\n", line, data->txt[line]);
-            }
-            if(line == data->txt_lines-1)
-                printf("EOT\n");
-        }
-
-        free(t);
-    }
-    else {
+    if (data->inpl <= 2) {
         for (int i = 0; i < data->txt_lines; ++i) {
             printf("%i: %s\n", i, data->txt[i]);
         }
         printf("EOT\n");
+        return;
     }
+    RangeArgument arg = parse_args_range(data->inpl, data->inp + 2);
+    if (arg.is_range) {
+        int from = arg.from;
+        int to = arg.to;
+        if (to == -1 && data->txt_lines > 0) {
+            to = data->txt_lines - 1;
+        }
 
-    putchar('\n');
+        for (int i = from; i <= to; ++i) {
+            if (i < data->txt_lines) {
+                printf("%d: %s\n", i, data->txt[i]);
+            }
+            if(i == data->txt_lines-1) {
+                printf("EOT\n");
+                break;
+            }
+        }
+    }
+    else {
+        int line = arg.line;
+        if (line < data->txt_lines) {
+            printf("%d: %s\n", line, data->txt[line]);
+        }
+        if (line == data->txt_lines - 1) {
+            printf("EOT\n");
+        }
+    }
 }
 
 void do_get_indents(LoopData* data) { // m
@@ -544,6 +580,8 @@ void do_copy(LoopData* data) { // c
     free(b);
 
     copy_fromto(data, av, bv);
+
+    data->changed = true;
 }
 
 void do_move(LoopData* data) { // p [from] [where to insert]
@@ -575,6 +613,8 @@ void do_move(LoopData* data) { // p [from] [where to insert]
 
     copy_fromto(data, av, bv);
     delete_line(data, av);
+
+    data->changed = true;
 }
 
 void do_find(LoopData* data) { // f
@@ -617,7 +657,6 @@ void do_list_findbuffer(LoopData* data) { // x
         POS *p = data->occ[i];
         printf("line: %i at: %i amount: %zu\n", p->line, p->offset, p->amount);
     }
-    putchar('\n');
 }
 
 void do_clear_findbuffer(LoopData* data) { // y 
@@ -814,14 +853,11 @@ void show_help_message(void) {
     printf("w [l] [txt]            changes the text of the line [l] to original indent + [txt]\n");
     printf("i [l]                  insert empty line after line [l]\n");
     printf("i [l] [txt]            insert line with text [t] after line [l]\n");
-    printf("d [l]                  delete line [l]\n");
+    printf("d [l: range]           delete all line(s) in the range [l]\n");
     printf("a                      append empty line\n");
     printf("a [txt]                append line with text [txt]\n");
     printf("l                      list all lines\n");
-    printf("l [l]                  lists only line [l]\n");
-    printf("l [a]-[b]              lists all lines from [a] to [b]\n");
-    printf("l -[b]                 lists all lines from the start to [b]\n");
-    printf("l [a]-                 lists all lines from [a] to the end\n");
+    printf("l [l: range]           lists all lines in the range [l]\n");
     printf("m [l]                  get indent (spaces) of line [l]\n");
     printf("c [l] [a]              copy line [l] and insert it after line [a]\n");
     printf("p [l] [a]              move line [l] after line [a]\n");
@@ -832,6 +868,12 @@ void show_help_message(void) {
     printf("o [name][args][body..] defines a macro\n");
     printf("t [macro] [args..]     executes a macro\n");
     putchar('\n');
+
+    printf("Ranges:\n");
+    printf("a-b                    range from a to b\n");
+    printf("a-                     range from a to end\n");
+    printf("-b                     range from 0 to b\n");
+    printf("a                      range of a\n");
 }
 
 int main(int argc, char **argv) {
@@ -841,6 +883,7 @@ int main(int argc, char **argv) {
     }
     
     LoopData data;
+    data.changed = false;
     data.c_file = argv[1];
 
     data.txt_lines = 0;
@@ -915,8 +958,8 @@ int main(int argc, char **argv) {
         free_tokenized(&data.tokens);
         free(data.inp);
 
-        if (!data.running) {
-            printf("Exit without saving? (y/n) ");
+        if (!data.running && data.changed) {
+            printf("Quit without saving? (y/n) ");
             char c = getchar();
             getchar();
             if (c == 'y') {
