@@ -730,21 +730,37 @@ void remove_range_from_find_buffer(LoopData* data, RangeOperation op) {
 }
 
 void do_replace_find_buffer(LoopData* data) { // z
-    //TODO
-    printf("Not implemented yet!\n");
-    //for (int i = 0; i < data->occ_c; ++i) {
-    //    POS *p = data->occ[i];
-    //}
+    // finds all occurences of (data->inp + 2) in the find buffer and makes that the new find buffer
+    for (int i = 0; i < data->occ_c; ++i) {
+        POS *p = data->occ[i];
+        char *line = data->txt[p->line];
+        char *w = strstr(line + p->offset, data->inp + 2);
+        if (w == NULL) {
+            data->occ[i] = NULL;
+            continue;
+        }
+        int offset = (int)(w - line);
+        if (offset > p->amount) {
+            data->occ[i] = NULL;
+            continue;
+        }
+        p->offset = offset;
+        p->amount = strlen(data->inp + 2);
+    }
 }
 
 void do_remove_find_buffer(LoopData* data) { // w
     for (int i = 0; i < data->occ_c; ++i) {
         POS *p = data->occ[i];
-        char *w = strstr(data->txt[p->line] + p->offset, data->inp + 2);
+        char *line = data->txt[p->line];
+        char *w = strstr(line + p->offset, data->inp + 2);
         if (w == NULL) {
             continue;
         }
-        // remove from find buffer
+        int offset = (int)(w - line);
+        if (offset > p->amount) {
+            continue;
+        }
         data->occ[i] = NULL;
     }
 }
