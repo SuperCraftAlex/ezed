@@ -722,11 +722,9 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < txt_lines_amount; ++i)
         data.txt[i] = malloc(txt_line_alloc_s);
 
-    // find buffer
-    data.occ_c = 0;
-    data.occ = malloc(data.txt_size);
     data.macroc = 0;
     data.macros = malloc(sizeof(macro) * 1);
+
     if(access(data.c_file, F_OK) == 0) {
         FILE* file;
         char *buffer = malloc(txt_line_alloc_s);
@@ -760,6 +758,10 @@ int main(int argc, char **argv) {
 
         printf("Loaded %d lines (%zu bytes) from file %s!\n", data.txt_lines, data.txt_size, data.c_file);
     }
+
+    // find buffer
+    data.occ_c = 0;
+    data.occ = malloc(data.txt_size * sizeof(POS *));
     
     data.running = true;
     while(data.running) {
