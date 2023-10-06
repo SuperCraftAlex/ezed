@@ -8,4 +8,4 @@ distcheck:
 	echo b
 
 build: ezed.c
-	cc ezed.c -o ezed -Werror -Wall
+	cc ezed.c macros.c -o ezed -Werror -Wall
