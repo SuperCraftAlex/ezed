@@ -289,6 +289,9 @@ void do_replace(LoopData* data) { // r
 
     for(int i = 0; i < data->occ_c; ++i) {
         POS *pos = data->occ[i];
+        if (pos == NULL) {
+            continue;
+        }
 
         replace(data->txt[pos->line], pos->offset, (int)pos->amount, t);
 
@@ -618,11 +621,9 @@ void do_move(LoopData* data) { // p [from] [where to insert]
 }
 
 void do_find(LoopData* data) { // f
-    char *t = malloc(data->inpl);
+    if (data->inpl <= 2) return;
 
-    for (int i = 2; i < data->inpl; ++i) {
-        t[i - 2] = data->inp[i];
-    }
+    char *t = data->inp + 2;
 
     int occ_c_old = data->occ_c;
     for (int l = 0; l < data->txt_lines; ++l) {
@@ -637,10 +638,11 @@ void do_find(LoopData* data) { // f
             }
             if (matching_step == strlen(t)) {
                 data->occ_c ++;
-                data->occ[data->occ_c-1] = malloc(sizeof(POS));
-                data->occ[data->occ_c-1]->line = l;
-                data->occ[data->occ_c-1]->offset = o-matching_step+1;
-                data->occ[data->occ_c-1]->amount = strlen(t);
+                POS *occ = malloc(sizeof(POS));
+                occ->line = l;
+                occ->offset = o - matching_step + 1;
+                occ->amount = strlen(t);
+                data->occ[data->occ_c-1] = occ;
                 break;
             }
             o++;
@@ -648,19 +650,103 @@ void do_find(LoopData* data) { // f
     }
 
     printf("%i occurrences of \"%s\" found!\n", data->occ_c - occ_c_old, t);
-
-    free(t);
 }
 
 void do_list_findbuffer(LoopData* data) { // x
     for (int i = 0; i < data->occ_c; ++i) {
         POS *p = data->occ[i];
+        if (p == NULL) {
+            continue;
+        }
         printf("line: %i at: %i amount: %zu\n", p->line, p->offset, p->amount);
     }
 }
 
 void do_clear_findbuffer(LoopData* data) { // y 
     data->occ_c = 0;
+}
+
+typedef enum {
+    IN_RANGE,
+    NOT_IN_RANGE
+} RangeOperation;
+
+// TODO: rewrite
+void remove_range_from_find_buffer(LoopData* data, RangeOperation op) {
+    if (data->inpl <= 2) return;
+
+    RangeArgument arg = parse_args_range(data->inpl, data->inp + 2);
+    if (arg.is_range) {
+        int from = arg.from;
+        int to = arg.to;
+        if (to == -1 && data->txt_lines > 0) {
+            to = data->txt_lines - 1;
+        }
+
+        for (int i = 0; i < data->occ_c; ++i) {
+            POS *p = data->occ[i];
+            if (p->line >= from && p->line <= to) {
+                if (op == IN_RANGE) {
+                    data->occ[i] = NULL;
+                }
+            }
+            else {
+                if (op == NOT_IN_RANGE) {
+                    data->occ[i] = NULL;
+                }
+            }
+        }
+    }
+    else {
+        int line = arg.line;
+        if (line < data->txt_lines) {
+            for (int i = 0; i < data->occ_c; ++i) {
+                POS *p = data->occ[i];
+                if (p->line == line) {
+                    if (op == IN_RANGE) {
+                        data->occ[i] = NULL;
+                    }
+                }
+                else {
+                    if (op == NOT_IN_RANGE) {
+                        data->occ[i] = NULL;
+                    }
+                }
+            }
+        }
+        else {
+            printf("Line %i out of bounds!\n", line);
+        }
+    }
+
+    int new_occ_c = 0;
+    for (int i = 0; i < data->occ_c; ++i) {
+        if (data->occ[i] != NULL) {
+            data->occ[new_occ_c] = data->occ[i];
+            new_occ_c++;
+        }
+    }
+    data->occ_c = new_occ_c;
+}
+
+void do_replace_find_buffer(LoopData* data) { // z
+    //TODO
+    printf("Not implemented yet!\n");
+    //for (int i = 0; i < data->occ_c; ++i) {
+    //    POS *p = data->occ[i];
+    //}
+}
+
+void do_remove_find_buffer(LoopData* data) { // w
+    for (int i = 0; i < data->occ_c; ++i) {
+        POS *p = data->occ[i];
+        char *w = strstr(data->txt[p->line] + p->offset, data->inp + 2);
+        if (w == NULL) {
+            continue;
+        }
+        // remove from find buffer
+        data->occ[i] = NULL;
+    }
 }
 
 void do_macro_def(LoopData* data) { // o
@@ -837,6 +923,18 @@ void resolve_input(LoopData* data) {
         case 'p':
             do_move(data);
             break;
+        case '*':
+            remove_range_from_find_buffer(data, NOT_IN_RANGE);
+            break;
+        case '&':
+            remove_range_from_find_buffer(data, IN_RANGE);
+            break;
+        case '$':
+            do_replace_find_buffer(data);
+            break;
+        case '%':
+            do_remove_find_buffer(data);
+            break;
         default:
             printf("Command not found!\n");
             break;
@@ -864,6 +962,10 @@ void show_help_message(void) {
     printf("f [txt]                finds occurrences of [txt]\n");
     printf("x                      list all contents in the find buffer\n");
     printf("y                      clear the find buffer\n");
+    printf("* [l: range]           removes every element in the find buffer where the line IS NOT in the range [l]\n");
+    printf("& [l: range]           removes every element in the find buffer where the line IS in the range [l]\n");
+    printf("$ [txt]                finds occurrences of [txt] in the find buffer and overwrites the find buffer with it\n");
+    printf("%% [txt]                removes every element in the find buffer which contains [txt]\n");
     printf("r [txt]                replaces everything in the find buffer with [txt]\n");
     printf("o [name][args][body..] defines a macro\n");
     printf("t [macro] [args..]     executes a macro\n");
