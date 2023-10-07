@@ -317,6 +317,16 @@ void writestr(char *str) {
 }
 
 static void list_range(LoopData *data, size_t from, size_t to) {
+    if (from > to) {
+        return;
+    }
+    if (from == to) {
+        printf("%zu| %s\n", from, data->txt[from]);
+        if (from == data->txt_lines - 1) {
+            printf("EOT\n");
+        }
+        return;
+    }
     bool left_align = strcmp(data->settings[0], "left") == 0;
 
     char buffer[sizeof(int) * 8 + 1];
@@ -345,15 +355,40 @@ static void list_range(LoopData *data, size_t from, size_t to) {
 
 void do_list(LoopData* data) { // l
     if (data->inpl <= 2) {
+        if (data->txt_lines == 0) {
+            printf("EOT\n");
+            return;
+        }
         list_range(data, 0, data->txt_lines - 1);
         return;
     }
     RangeArgument arg = parse_args_range(data->inpl, data->inp + 2);
     if (arg.is_range) {
+        if (data->txt_lines == 0) {
+            printf("Out of range!\n");
+            return;
+        }
+
         int from = arg.from;
         int to = arg.to;
+
         if (to == -1 && data->txt_lines > 0) {
             to = data->txt_lines - 1;
+        }
+
+        if (to > data->txt_lines - 1) {
+            printf("Out of range!\n");
+            return;
+        }
+
+        if (from < 0) {
+            printf("Out of range!\n");
+            return;
+        }
+
+        if (from > to) {
+            printf("Invalid range!\n");
+            return;
         }
 
         list_range(data, from, to);
@@ -948,9 +983,9 @@ int main(int argc, char **argv) {
 
         data.inp = line;
 
-        writestr("> ");
-        writestr(line);
-        putchar('\n');
+        //writestr("> ");
+        //writestr(line);
+        //putchar('\n');
 
         data.inpl = strlen(line) + 1;
 

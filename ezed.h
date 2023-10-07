@@ -46,4 +46,7 @@ struct POS {
 
 void resolve_input(LoopData* data);
 
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
 #endif //EZED_EZED_H
