@@ -512,7 +512,6 @@ typedef enum {
     NOT_IN_RANGE
 } RangeOperation;
 
-// TODO: rewrite
 void remove_range_from_find_buffer(LoopData* data, RangeOperation op) {
     if (data->inpl <= 2) return;
 
@@ -660,6 +659,7 @@ static void do_print_settings(LoopData *data) {
 }
 
 static void do_print_macros(LoopData *data) {
+    printf("Not implemented yet!\n");
     // TODO
 }
 
@@ -821,7 +821,6 @@ static char *strclone(char *str) {
 
 static void load_defaults(LoopData *data) {
     data->settings[0] = strclone("right");
-    data->settings[1] = strclone("y");
 }
 
 static void trimTrailing(char *str) {
