@@ -307,12 +307,40 @@ void do_append(LoopData* data) { // a
     data->changed = true;
 }
 
+void writestr(char *str) {
+    char c = ' ';
+    while (c != 0) {
+        c = *str;
+        putchar(c);
+        str++;
+    }
+}
+
+static void list_range(LoopData *data, size_t from, size_t to) {
+    char buffer[sizeof(int) * 8 + 1];
+
+    sprintf(buffer, "%zu", to);
+    size_t len = strlen(buffer);
+    for (int i = from; i <= to; ++i) {
+        sprintf(buffer, "%i", i);
+        size_t l = strlen(buffer);
+        writestr(buffer);
+        for (int j = 0; j < len - l; ++j) {
+            putchar(' ');
+        }
+        putchar('|');
+        putchar(' ');
+        writestr(data->txt[i]);
+        putchar('\n');
+    }
+    if (to == data->txt_lines - 1) {
+        printf("EOT\n");
+    }
+}
+
 void do_list(LoopData* data) { // l
     if (data->inpl <= 2) {
-        for (int i = 0; i < data->txt_lines; ++i) {
-            printf("%i: %s\n", i, data->txt[i]);
-        }
-        printf("EOT\n");
+        list_range(data, 0, data->txt_lines - 1);
         return;
     }
     RangeArgument arg = parse_args_range(data->inpl, data->inp + 2);
@@ -323,20 +351,12 @@ void do_list(LoopData* data) { // l
             to = data->txt_lines - 1;
         }
 
-        for (int i = from; i <= to; ++i) {
-            if (i < data->txt_lines) {
-                printf("%d: %s\n", i, data->txt[i]);
-            }
-            if(i == data->txt_lines-1) {
-                printf("EOT\n");
-                break;
-            }
-        }
+        list_range(data, from, to);
     }
     else {
         int line = arg.line;
         if (line < data->txt_lines) {
-            printf("%d: %s\n", line, data->txt[line]);
+            printf("%i| %s\n", line, data->txt[line]);
         }
         if (line == data->txt_lines - 1) {
             printf("EOT\n");
@@ -596,7 +616,7 @@ void resolve_input(LoopData* data) {
         return;
     }
 
-    if (data->inpl == 1 || data->inp[1] != ' ') {
+    if (data->inpl == 1 || !(data->inp[1] == ' ' || data->inp[1] == 0)) {
         printf("Command not found!\n");
         return;
     }
