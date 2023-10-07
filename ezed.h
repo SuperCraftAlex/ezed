@@ -15,23 +15,27 @@ typedef struct POS POS;
 
 #include "macros.h"
 
+#define SETTINGS_COUNT 1
+
 struct LoopData {
-    char* c_file;
+    char *c_file;
     int txt_lines;
     size_t txt_size;
-    char** txt;
+    char **txt;
     int occ_c;
-    POS** occ;
+    POS **occ;
     bool running;
 
-    char* inp;
+    char *inp;
     size_t inpl;
 
     tokenized tokens;
-    macro* macros;
+    macro *macros;
     size_t macroc;
 
     bool changed;
+
+    char *settings[SETTINGS_COUNT];
 };
 
 struct POS {

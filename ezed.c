@@ -317,6 +317,8 @@ void writestr(char *str) {
 }
 
 static void list_range(LoopData *data, size_t from, size_t to) {
+    bool left_align = strcmp(data->settings[0], "left") == 0;
+
     char buffer[sizeof(int) * 8 + 1];
 
     sprintf(buffer, "%zu", to);
@@ -324,9 +326,12 @@ static void list_range(LoopData *data, size_t from, size_t to) {
     for (int i = from; i <= to; ++i) {
         sprintf(buffer, "%i", i);
         size_t l = strlen(buffer);
+        if (!left_align) {
+            for (int j = 0; j < len - l; ++j) { putchar(' '); }
+        }
         writestr(buffer);
-        for (int j = 0; j < len - l; ++j) {
-            putchar(' ');
+        if (left_align) {
+            for (int j = 0; j < len - l; ++j) { putchar(' '); }
         }
         putchar('|');
         putchar(' ');
@@ -601,9 +606,66 @@ void do_remove_find_buffer(LoopData* data) { // w
     }
 }
 
-void resolve_input(LoopData* data) {
+static void validate_and_set(LoopData *data, int setting, char *value) {
+    if (setting == 0) {
+        if (!(strcmp(value, "right") == 0 || strcmp(value, "left") == 0)) {
+            printf("Invalid value!\n");
+            return;
+        }
+    }
+    else {
+        printf("Invalid setting!\n");
+    }
+
+    size_t s = strlen(value) + 1;
+    data->settings[setting] = realloc(data->settings[setting], s);
+    memcpy(data->settings[setting], value, s);
+}
+
+static void do_set(LoopData *data) {
+    if (data->inpl <= 2) {
+        printf("Usage: ! [setting] [value]\n");
+        return;
+    }
+
+    char *setting_s = malloc(data->inpl);
+    char *value_s = malloc(data->inpl);
+
+    int stage = 0;
+    int c = 0;
+    for (int i = 2; i < data->inpl; ++i) {
+        if ((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n') {
+            stage++;
+            c = 0;
+            continue;
+        }
+        if (stage == 0)
+            setting_s[c] = data->inp[i];
+        else if (stage == 1)
+            value_s[c] = data->inp[i];
+        c++;
+    }
+
+    int setting = atoi(setting_s);
+    validate_and_set(data, setting, value_s);
+
+    free(setting_s);
+    free(value_s);
+}
+
+static void do_print_settings(LoopData *data) {
+    for (size_t i = 0; i < SETTINGS_COUNT; i++) {
+        printf("%zu=%s\n", i, data->settings[i]);
+    }
+}
+
+static void do_print_macros(LoopData *data) {
+    // TODO
+}
+
+void resolve_input(LoopData *data) {
     for (int i = data->inpl - 1; i >= 0; --i) {
-        if (data->inp[i] == ' ' || data->inp[i] == '\n') {
+        if (data->inp[i] == ' ' || data->inp[i] == '\n' || data->inp[i] == '\r') {
             data->inp[i] = 0;
             data->inpl--;
         }
@@ -691,6 +753,15 @@ void resolve_input(LoopData* data) {
         case '%':
             do_remove_find_buffer(data);
             break;
+        case '!':
+            do_set(data);
+            break;
+        case '(':
+            do_print_settings(data);
+            break;
+        case ')':
+            do_print_macros(data);
+            break;
         default:
             printf("Command not found!\n");
             break;
@@ -725,6 +796,9 @@ void show_help_message(void) {
     printf("r [txt]                replaces everything in the find buffer with [txt]\n");
     printf("o [name][args][body..] defines a macro\n");
     printf("t [macro] [args..]     executes a macro\n");
+    printf("! [setting] [val]      sets a setting\n");
+    printf("(                      prints all settings\n");
+    printf(")                      prints all macros\n");
     putchar('\n');
 
     printf("Ranges:\n");
@@ -732,6 +806,37 @@ void show_help_message(void) {
     printf("a-                     range from a to end\n");
     printf("-b                     range from 0 to b\n");
     printf("a                      range of a\n");
+    putchar('\n');
+
+    printf("Settings:\n");
+    printf("0   [\"right\"|\"left\"]   sets the alignment of line numbers (default: right)\n");
+}
+
+static char *strclone(char *str) {
+    size_t len = strlen(str) + 1;
+    char *clone = malloc(len);
+    memcpy(clone, str, len);
+    return clone;
+}
+
+static void load_defaults(LoopData *data) {
+    data->settings[0] = strclone("right");
+    data->settings[1] = strclone("y");
+}
+
+static void trimTrailing(char *str) {
+    int index, i;
+    index = -1;
+
+    i = 0;
+    while(str[i] != '\0') {
+        if(str[i] != ' ' && str[i] != '\t' && str[i] != '\n') {
+            index = i;
+        }
+        i++;
+    }
+
+    str[index + 1] = '\0';
 }
 
 int main(int argc, char **argv) {
@@ -793,6 +898,84 @@ int main(int argc, char **argv) {
     data.occ = malloc(data.txt_size * sizeof(POS *));
     
     data.running = true;
+
+    load_defaults(&data);
+
+    // .ezedrc
+    char *user_home = getenv("HOME");
+    size_t user_home_len = strlen(user_home);
+    char *ezedrc_path = malloc(user_home_len + 9);
+    strcpy(ezedrc_path, user_home);
+    memcpy(ezedrc_path + user_home_len, "/.ezedrc", 8);
+    ezedrc_path[user_home_len + 8] = 0;
+
+    FILE *ezedrc;
+    if(access(ezedrc_path, F_OK) != 0) {
+        printf("Creating %s...\n", ezedrc_path);
+        ezedrc = fopen(ezedrc_path, "w");
+        if (ezedrc == NULL) {
+            printf("Error creating %s!\n", ezedrc_path);
+            return 1;
+        }
+        fprintf(ezedrc, "# Every line in this file will be executed on the start of EzEd (after loading the file)\n");
+        fprintf(ezedrc, "! 0 right      # Sets the alignment of line numbers to right align\n");
+        fclose(ezedrc);
+    }
+    ezedrc = fopen(ezedrc_path, "r");
+    if (ezedrc == NULL) {
+        printf("Error opening %s!\n", ezedrc_path);
+        return 1;
+    }
+    free(ezedrc_path);
+
+    char *line = NULL;
+    size_t line_len = 0;
+    ssize_t read;
+    while ((read = getline(&line, &line_len, ezedrc)) != -1) {
+        line[read] = 0;
+
+        for (size_t i = 0; i < read; ++i) {
+            if (line[i] == '\n' || line[i] == '\r' || line[i] == 0 || line[i] == '#') {
+                line[i] = 0;
+                break;
+            }
+        }
+
+        trimTrailing(line);
+
+        if (line[0] == 0) {
+            continue;
+        }
+
+        data.inp = line;
+
+        writestr("> ");
+        writestr(line);
+        putchar('\n');
+
+        data.inpl = strlen(line) + 1;
+
+        data.tokens = tokenize(data.inp, 0, 1);
+
+        if(data.tokens.count == 0) {
+            free_tokenized(&data.tokens);
+            continue;
+        }
+
+        resolve_input(&data);
+
+        free_tokenized(&data.tokens);
+
+        if (!data.running) {
+            printf("Quitting from .ezedrc is not allowed!\n");
+            data.running = true;
+        }
+    }
+    fclose(ezedrc);
+    if (line != NULL) {
+        free(line);
+    }
+
     while(data.running) {
         data.inp = malloc(inp_alloc_s + 1);
         printf("> ");
@@ -805,7 +988,7 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        data.tokens = tokenize(data.inp,0,1);
+        data.tokens = tokenize(data.inp, 0, 1);
 
         if(data.tokens.count == 0) {
             free_tokenized(&data.tokens);
