@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
-#include <ctype.h>
 
 #include "ezed.h"
 
@@ -588,8 +587,18 @@ void resolve_input(LoopData* data) {
             data->inp[i] = 0;
             data->inpl--;
         }
-        else
+        else {
             break;
+        }
+    }
+
+    if (data->inpl == 0) {
+        return;
+    }
+
+    if (data->inpl == 1 || data->inp[1] != ' ') {
+        printf("Command not found!\n");
+        return;
     }
 
     switch(data->inp[0]) {
