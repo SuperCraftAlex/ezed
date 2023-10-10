@@ -6,30 +6,22 @@
 
 #include "ezed.h"
 
-void replace(char *str, int start, int amount, char *replacev) {
-    int len = strlen(str);
-    int replaceLen = strlen(replacev);
+void replace(char **str, int start, size_t amount, char *rep) {
+    char *new = malloc(strlen(*str) + strlen(rep) + 1);
 
-    if (start < 0 || start >= len || amount <= 0) {
-        return;
-    }
+    (*str)[start] = '\0';
 
-    int end = start + amount;
-    int resultLen = len - amount + replaceLen;
+    new[0] = 0;
+    strcat(new, *str);
 
-    if (resultLen >= len) {
-        memmove(str + start + replaceLen, str + end, len - end + 1);
-        memcpy(str + start, replacev, replaceLen);
-    } else {
-        char result[resultLen + 1];
-        strncpy(result, str, start);
-        strncpy(result + start, replacev, replaceLen);
-        strncpy(result + start + replaceLen, str + end, len - end);
+    strcat(new, rep);
 
-        result[resultLen] = '\0';
-        strcpy(str, result);
-    }
+    strcat(new, *str + start + amount);
+
+    free(*str);
+    *str = new;
 }
+
 
 size_t inp_alloc_s = sizeof(char) * 50 * 50;
 size_t txt_lines_amount = 500;
@@ -97,11 +89,6 @@ RangeArgument parse_args_range(size_t inpl, char *inp) {
 
 void do_replace(LoopData* data) { // r
     // replace
-    char *t = malloc(data->inpl);
-
-    for(int i = 2; i < data->inpl; ++i) {
-        t[i - 2] = data->inp[i];
-    }
 
     for(int i = 0; i < data->occ_c; ++i) {
         POS *pos = data->occ[i];
@@ -109,12 +96,10 @@ void do_replace(LoopData* data) { // r
             continue;
         }
 
-        replace(data->txt[pos->line], pos->offset, (int)pos->amount, t);
+        replace(&data->txt[pos->line], pos->offset, pos->amount, data->inp + 2);
 
         data->changed = true;
     }
-
-    free(t);
 
     data->occ_c = 0;
 }
@@ -518,6 +503,7 @@ void do_find(LoopData* data) { // f
                 occ->line = l;
                 occ->offset = o - matching_step + 1;
                 occ->amount = strlen(t);
+                data->occ = realloc(data->occ, sizeof(POS *) * data->occ_c);
                 data->occ[data->occ_c-1] = occ;
                 break;
             }
@@ -694,8 +680,16 @@ static void do_print_settings(LoopData *data) {
 }
 
 static void do_print_macros(LoopData *data) {
-    printf("Not implemented yet!\n");
-    // TODO
+    for (size_t i = 0; i < data->macroc; i++) {
+        writestr(data->macros[i].name.str);
+        printf("(%zu)", data->macros[i].args);
+        writestr(" = ");
+        for (size_t i = 0; i < data->macros[i].performc; i++) {
+            writestr(data->macros[i].performs[i].str);
+            writestr(" ; ");
+        }
+        putchar('\n');
+    }
 }
 
 void resolve_input(LoopData *data) {
