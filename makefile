@@ -1,2 +1,9 @@
-build: ezed.c
-	cc ezed.c macros.c -o ezed -Werror -Wall
+.PHONY: clean build
+build: ezed
+all: ezed
+clean:
+
+CFLAGS := -Werror -Wall
+
+ezed: ezed.c macros.c
+	$(CC) $^ -o $@ $(CFLAGS)
