@@ -692,6 +692,66 @@ static void do_print_macros(LoopData *data) {
     }
 }
 
+static void do_shell_command(LoopData *data) {
+    char *cmd = data->inp + 2;
+    (void) system(cmd);
+}
+
+static void do_shell_command_append(LoopData *data) {
+    size_t old_next_line = data->txt_lines;
+
+    char *cmd = data->inp + 2;
+    FILE *p = popen(cmd, "r");
+    if (p == NULL) {
+        printf("Error executing command!\n");
+        return;
+    }
+
+    size_t line = data->txt_lines;
+    data->txt_size += 1;
+    data->txt[line][0] = 0;
+    data->txt_lines ++;
+    auto_increase_alloc(data);
+
+    size_t writer = 0;
+
+    char c;
+    while ((c = fgetc(p)) != EOF) {
+        if (c == '\n') {
+            data->txt_size += writer + 1;
+            data->txt[line][writer] = 0;
+            data->txt_size += 1;
+            line = data->txt_lines ++;
+            auto_increase_alloc(data);
+            data->txt[line][0] = 0;
+            writer = 0;
+            continue;
+        }
+        data->txt[line][writer++] = c;
+    }
+
+    data->txt[line][writer] = 0;
+    data->txt_size += writer + 1;
+
+    data->changed = true;
+
+    pclose(p);
+
+    printf("Added lines from %zu to %zu!\n", old_next_line, line);
+}
+
+static void do_trim_trailing(LoopData *data) {
+    // reverse iterate over all lines
+    for (size_t i = data->txt_lines - 1; i > 0; i--) {
+        char *line = data->txt[i];
+        if (line[0] != '\0') {
+            break;
+        }
+        data->txt_size --;
+        data->txt_lines --;
+    }
+}
+
 void resolve_input(LoopData *data) {
     for (int i = data->inpl - 1; i >= 0; --i) {
         if (data->inp[i] == ' ' || data->inp[i] == '\n' || data->inp[i] == '\r') {
@@ -791,6 +851,15 @@ void resolve_input(LoopData *data) {
         case ')':
             do_print_macros(data);
             break;
+        case '\'':
+            do_shell_command(data);
+            break;
+        case '/':
+            do_shell_command_append(data);
+            break;
+        case 'k':
+            do_trim_trailing(data);
+            break;
         default:
             printf("Command not found!\n");
             break;
@@ -799,46 +868,49 @@ void resolve_input(LoopData *data) {
 
 void show_help_message(void) {
     printf("Commands:\n");
-    printf("q                      quit\n");
-    printf("h                      display this\n");
-    printf("s                      save to the file\n");
-    printf("v                      display infos about the file and others\n");
-    printf("e [l] [txt]            changes the text of the line [l] to [txt]\n");
-    printf("w [l] [txt]            changes the text of the line [l] to original indent + [txt]\n");
-    printf("i [l]                  insert empty line after line [l]\n");
-    printf("i [l] [txt]            insert line with text [t] after line [l]\n");
-    printf("d [l: range]           delete all line(s) in the range [l]\n");
-    printf("a                      append empty line\n");
-    printf("a [txt]                append line with text [txt]\n");
-    printf("l                      list all lines\n");
-    printf("l [l: range]           lists all lines in the range [l]\n");
-    printf("m [l]                  get indent (spaces) of line [l]\n");
-    printf("c [l] [a]              copy line [l] and insert it after line [a]\n");
-    printf("p [l] [a]              move line [l] after line [a]\n");
-    printf("f [txt]                finds occurrences of [txt]\n");
-    printf("x                      list all contents in the find buffer\n");
-    printf("y                      clear the find buffer\n");
-    printf("* [l: range]           removes every element in the find buffer where the line IS NOT in the range [l]\n");
-    printf("& [l: range]           removes every element in the find buffer where the line IS in the range [l]\n");
-    printf("$ [txt]                finds occurrences of [txt] in the find buffer and overwrites the find buffer with it\n");
-    printf("%% [txt]                removes every element in the find buffer which contains [txt]\n");
-    printf("r [txt]                replaces everything in the find buffer with [txt]\n");
-    printf("o [name][args][body..] defines a macro\n");
-    printf("t [macro] [args..]     executes a macro\n");
-    printf("! [setting] [val]      sets a setting\n");
-    printf("(                      prints all settings\n");
-    printf(")                      prints all macros\n");
+    printf("q                       quit\n");
+    printf("h                       display this\n");
+    printf("s                       save to the file\n");
+    printf("v                       display infos about the file and others\n");
+    printf("e [l] [txt...]          changes the text of the line [l] to [txt]\n");
+    printf("w [l] [txt...]          changes the text of the line [l] to original indent + [txt]\n");
+    printf("i [l]                   insert empty line after line [l]\n");
+    printf("i [l] [txt...]          insert line with text [t] after line [l]\n");
+    printf("d [l: range]            delete all line(s) in the range [l]\n");
+    printf("a                       append empty line\n");
+    printf("a [txt...]              append line with text [txt]\n");
+    printf("l                       list all lines\n");
+    printf("l [l: range]            lists all lines in the range [l]\n");
+    printf("m [l]                   get indent (spaces) of line [l]\n");
+    printf("c [l] [a]               copy line [l] and insert it after line [a]\n");
+    printf("p [l] [a]               move line [l] after line [a]\n");
+    printf("f [txt...]              finds occurrences of [txt]\n");
+    printf("x                       list all contents in the find buffer\n");
+    printf("y                       clear the find buffer\n");
+    printf("* [l: range]            removes every element in the find buffer where the line IS NOT in the range [l]\n");
+    printf("& [l: range]            removes every element in the find buffer where the line IS in the range [l]\n");
+    printf("$ [txt...]              finds occurrences of [txt] in the find buffer and overwrites the find buffer with it\n");
+    printf("%% [txt...]              removes every element in the find buffer which contains [txt]\n");
+    printf("r [txt...]              replaces everything in the find buffer with [txt]\n");
+    printf("o [name][args][body...] defines a macro\n");
+    printf("t [macro] [args...]     executes a macro\n");
+    printf("! [setting] [val...]    sets a setting\n");
+    printf("(                       prints all settings\n");
+    printf(")                       prints all macros\n");
+    printf("' [cmd...]              execute shell command\n");
+    printf("/ [cmd...]              executes the shell command and appends the output to the current file\n");
+    printf("k                       trim trailing lines\n");
     putchar('\n');
 
     printf("Ranges:\n");
-    printf("a-b                    range from a to b\n");
-    printf("a-                     range from a to end\n");
-    printf("-b                     range from 0 to b\n");
-    printf("a                      range of a\n");
+    printf("a-b                     range from a to b\n");
+    printf("a-                      range from a to end\n");
+    printf("-b                      range from 0 to b\n");
+    printf("a                       range of a\n");
     putchar('\n');
 
     printf("Settings:\n");
-    printf("0   [\"right\"|\"left\"]   sets the alignment of line numbers (default: right)\n");
+    printf("0   [\"right\"|\"left\"]    sets the alignment of line numbers (default: right)\n");
 }
 
 static char *strclone(char *str) {
