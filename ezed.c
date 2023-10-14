@@ -175,49 +175,53 @@ void do_edit(LoopData* data, int keep_indent) {
 
 void do_insert(LoopData* data) { // i
     // insert line after...
+    // possible usages:
+    // i [line] [text...]                  (insert line with text)
+    // i [line]                            (insert empty line)
+
     if(data->inpl <= 2) return;
     char *line_s = malloc(data->inpl);
     char *ltxt = malloc(data->inpl);
 
-    int ltxt_lb = 0;
-
     int stage = 0;
     int c = 0;
-    for (int i = 2; i < data->inpl; ++i) {
-        if ((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n' || data->inp[i] == 10) {
+    for(int i = 2; i < data->inpl; ++i) {
+        if((data->inp[i] == ' ' && stage == 0) || data->inp[i] == '\n') {
             stage++;
             c = 0;
             continue;
         }
-        if (stage == 0)
+        if(stage == 0)
             line_s[c] = data->inp[i];
-        else if (stage == 1) {
-            ltxt_lb ++;
+        else if(stage == 1)
             ltxt[c] = data->inp[i];
-        }
         c++;
     }
 
-    int line = atoi(line_s) + 1;
+    int line = atoi(line_s);
     size_t ltxt_l = strlen(ltxt);
 
-    for (int i = data->txt_lines; i > line; --i) {
+    if(line < data->txt_lines)
+        data->txt_size -= strlen(data->txt[line]) + 1;
+
+    for(int i = data->txt_lines; i > line + 1; --i) {
         memcpy(data->txt[i], data->txt[i - 1], strlen(data->txt[i - 1]) + 1);
     }
 
-    if (ltxt_l > 1 && ltxt_lb > 0) {
-        memcpy(data->txt[line], ltxt, ltxt_l + 1);
-        data->txt_size += ltxt_l + 1;
-    } else {
-        memset(data->txt[line], 0, strlen(data->txt[line]));
-        data->txt_size++;
+    if(ltxt_l == 0) {
+        data->txt[line + 1][0] = 0;
     }
+    else {
+        memcpy(data->txt[line + 1], ltxt, ltxt_l + 1);
+    }
+    data->txt_size += ltxt_l + 1;
+
     data->txt_lines++;
+
+    auto_increase_alloc(data);
 
     free(line_s);
     free(ltxt);
-
-    auto_increase_alloc(data);
 
     data->changed = true;
 }
