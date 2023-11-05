@@ -1,4 +1,5 @@
 # ezed
+Really simple line-based text editor
 
 ### Commands
 ```text
